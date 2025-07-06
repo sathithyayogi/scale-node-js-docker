@@ -2,6 +2,10 @@
 
 ## 🔄 Auto-Scaling Implementation Overview
 
+This project demonstrates both horizontal and vertical scaling in Docker Compose using resource-based metrics.
+
+### 1. Horizontal Scaling (Scale Out/In)
+
 This project demonstrates automatic scaling in Docker Compose using resource-based metrics. The implementation includes a custom auto-scaler service that monitors container resources and adjusts the number of application instances accordingly.
 
 ### How Auto-Scaling Works
@@ -116,6 +120,110 @@ docker compose ps
 # Monitor scaling metrics
 docker compose logs -f autoscaler
 ```
+
+### 2. Vertical Scaling (Scale Up/Down)
+
+The project includes a vertical scaling script that dynamically adjusts CPU and memory resources for individual containers based on their usage.
+
+```mermaid
+graph TD
+    A[Vertical Scaler] -->|Every 30s| B[Monitor Container]
+    B --> C{Check Resource Usage}
+    C -->|High Usage| D[Increase Resources]
+    C -->|Low Usage| E[Decrease Resources]
+    C -->|Normal| F[Maintain Current]
+    D --> G[Update Container]
+    E --> G
+```
+
+#### 📊 Vertical Scaling Thresholds
+
+**Scale UP Conditions:**
+```bash
+# CPU Scaling Up
+if CPU_Usage > 80% then
+    increase CPU by 0.25 cores
+    max limit: 2.0 cores
+
+# Memory Scaling Up
+if Memory_Usage > 80% then
+    increase Memory by 128MB
+    max limit: 1024MB
+```
+
+**Scale DOWN Conditions:**
+```bash
+# CPU Scaling Down
+if CPU_Usage < 30% then
+    decrease CPU by 0.25 cores
+    min limit: 0.25 cores
+
+# Memory Scaling Down
+if Memory_Usage < 30% then
+    decrease Memory by 128MB
+    min limit: 128MB
+```
+
+#### 🔧 Resource Adjustment Steps
+- CPU: 0.25 core increments
+- Memory: 128MB increments
+- Check Interval: 30 seconds
+
+#### 📈 Example Vertical Scaling Scenario
+
+```bash
+Time 0:   Container1 [CPU: 0.5 cores, MEM: 256MB]
+          Usage: CPU 85%, Memory 82%
+          
+Time 30s: Container1 [CPU: 0.75 cores, MEM: 384MB]
+          Usage: CPU 65%, Memory 60%
+          
+Time 60s: Container1 [CPU: 0.75 cores, MEM: 384MB]
+          Usage: CPU 45%, Memory 55%
+```
+
+#### 🛠️ Using the Vertical Scaler
+
+1. **Make the script executable:**
+   ```bash
+   chmod +x vertical-scaler.sh
+   ```
+
+2. **Run the vertical scaler:**
+   ```bash
+   ./vertical-scaler.sh
+   ```
+
+3. **Monitor scaling actions:**
+   ```bash
+   # View real-time resource adjustments
+   tail -f vertical-scaler.log
+   ```
+
+#### ⚙️ Configuration Options
+
+The vertical scaler can be configured by adjusting these variables in the script:
+```bash
+MIN_CPU=0.25        # Minimum CPU cores
+MAX_CPU=2.0         # Maximum CPU cores
+MIN_MEMORY=128      # Minimum memory in MB
+MAX_MEMORY=1024     # Maximum memory in MB
+CPU_STEP=0.25       # CPU increment/decrement step
+MEMORY_STEP=128     # Memory increment/decrement step in MB
+CHECK_INTERVAL=30   # Check interval in seconds
+```
+
+#### 🔍 Vertical Scaling Benefits
+- Fine-grained resource control
+- No application disruption
+- Efficient resource utilization
+- Cost optimization
+- Better performance under varying loads
+
+#### ⚠️ Limitations
+- Maximum resources limited by host capacity
+- Some applications may need restart for resource changes
+- Not all container types support dynamic resource updates
 
 ---
 
