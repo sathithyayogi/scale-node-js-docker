@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    deploy:
+      replicas: 3  # Starting number of replicas
+      resources:
+        limits:
+          cpus: '0.5'  # Limit each container to use 50% of a CPU core
+          memory: 256M  # Limit each container to use 256MB of memory
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      update_config:
+        parallelism: 2
+        delay: 10s
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+    environment:
+      - PORT=3000
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - app 
+
+  autoscaler:
+    image: docker:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      sh -c "
+      while true; do
+        # Get current number of replicas
+        CURRENT_REPLICAS=$$(docker compose ps -q app | wc -l);
+        
+        # Get average CPU usage across all app containers
+        CPU_USAGE=$$(docker stats --no-stream --format '{{.CPUPerc}}' $$(docker compose ps -q app) | 
+          awk '{ sum += substr($$1, 1, length($$1)-1) } END { print sum/NR }');
+        
+        # Get average memory usage across all app containers
+        MEM_USAGE=$$(docker stats --no-stream --format '{{.MemPerc}}' $$(docker compose ps -q app) |
+          awk '{ sum += substr($$1, 1, length($$1)-1) } END { print sum/NR }');
+        
+        echo \"Current metrics - Replicas: $$CURRENT_REPLICAS, CPU: $$CPU_USAGE%, Memory: $$MEM_USAGE%\";
+        
+        # Scale up if CPU > 70% or Memory > 80%
+        if (( $$(echo \"$$CPU_USAGE > 70\" | bc -l) )) || (( $$(echo \"$$MEM_USAGE > 80\" | bc -l) )); then
+          if [ $$CURRENT_REPLICAS -lt 10 ]; then
+            echo \"Scaling up due to high resource usage\";
+            docker compose up -d --scale app=$$((CURRENT_REPLICAS + 1)) --no-recreate;
+          fi;
+        # Scale down if CPU < 30% and Memory < 40%
+        elif (( $$(echo \"$$CPU_USAGE < 30\" | bc -l) )) && (( $$(echo \"$$MEM_USAGE < 40\" | bc -l) )); then
+          if [ $$CURRENT_REPLICAS -gt 3 ]; then
+            echo \"Scaling down due to low resource usage\";
+            docker compose up -d --scale app=$$((CURRENT_REPLICAS - 1)) --no-recreate;
+          fi;
+        fi;
+        
+        sleep 30;
+      done
+      "
+    depends_on:
+      - app 

@@ -1,0 +1,13 @@
+{
+  "name": "scale-node-js-docker",
+  "version": "1.0.0",
+  "description": "A scalable Node.js application with Docker",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+} 
